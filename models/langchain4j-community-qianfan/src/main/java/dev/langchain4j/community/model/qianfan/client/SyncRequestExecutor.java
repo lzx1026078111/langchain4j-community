@@ -1,46 +1,31 @@
 package dev.langchain4j.community.model.qianfan.client;
 
-import okhttp3.Request;
-import okio.Buffer;
-import retrofit2.Call;
-
-import java.io.IOException;
+import dev.langchain4j.http.client.HttpClient;
+import dev.langchain4j.http.client.HttpRequest;
+import dev.langchain4j.http.client.SuccessfulHttpResponse;
 import java.util.function.Function;
 
 public class SyncRequestExecutor<Response, ResponseContent> {
 
-    private final Call<Response> call;
+    private final HttpClient httpClient;
+    private final HttpRequest httpRequest;
+    private final Class<Response> responseClass;
     private final Function<Response, ResponseContent> responseContentExtractor;
 
-    SyncRequestExecutor(Call<Response> call, Function<Response, ResponseContent> responseContentExtractor) {
-        this.call = call;
+    public SyncRequestExecutor(
+            HttpClient httpClient,
+            HttpRequest httpRequest,
+            Class<Response> responseClass,
+            Function<Response, ResponseContent> responseContentExtractor) {
+        this.httpClient = httpClient;
+        this.httpRequest = httpRequest;
+        this.responseClass = responseClass;
         this.responseContentExtractor = responseContentExtractor;
     }
 
     public ResponseContent execute() {
-        try {
-            retrofit2.Response<Response> retrofitResponse = this.call.execute();
-            if (retrofitResponse.isSuccessful()) {
-                Response response = retrofitResponse.body();
-                return this.responseContentExtractor.apply(response);
-            } else {
-                throw Utils.toException(retrofitResponse);
-            }
-        } catch (IOException var3) {
-            throw new RuntimeException(var3);
-        }
-    }
-
-    public String getBody(Request request) {
-        if ("GET".equals(request.method())) {
-            return "";
-        }
-        try {
-            Buffer buffer = new Buffer();
-            request.body().writeTo(buffer);
-            return buffer.readUtf8();
-        } catch (Exception var2) {
-            return "[Exception happened while reading request body. Check logs for more details.]";
-        }
+        SuccessfulHttpResponse successfulHttpResponse = httpClient.execute(httpRequest);
+        Response response = Json.fromJson(successfulHttpResponse.body(), responseClass);
+        return this.responseContentExtractor.apply(response);
     }
 }

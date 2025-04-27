@@ -1,19 +1,40 @@
 package dev.langchain4j.community.model.qianfan.client;
 
-import retrofit2.Response;
+import static dev.langchain4j.internal.ValidationUtils.ensureNotNull;
 
-import java.io.IOException;
+import java.net.URLEncoder;
+import java.nio.charset.Charset;
+import java.util.Map;
+import java.util.Objects;
+import java.util.regex.Pattern;
 
 public class Utils {
 
-    Utils() {
-    }
+    private Utils() {}
 
-    static RuntimeException toException(Response<?> response) throws IOException {
-        return new QianfanHttpException(response.code(), response.errorBody().string());
-    }
+    static String pathWithQuery(String path, Map<String, Object> params) {
+        ensureNotNull(params, "params");
+        StringBuilder builder = new StringBuilder();
+        builder.append(path);
+        boolean isFirstParam = true;
 
-    static RuntimeException toException(okhttp3.Response response) throws IOException {
-        return new QianfanHttpException(response.code(), response.body().string());
+        // for process space.
+        // " " -- URLEncoder.encode() --> "+" -- replace -->"%20"
+        Pattern pattern = Pattern.compile("\\+");
+        for (final Map.Entry<String, Object> entry : params.entrySet()) {
+            String key = entry.getKey();
+            String encodeKey = URLEncoder.encode(key, Charset.defaultCharset());
+            builder.append(isFirstParam ? "?" : "&").append(encodeKey);
+
+            Object value = entry.getValue();
+            if (value != null) {
+                String valueStr = Objects.toString(value);
+                String encodeValue = URLEncoder.encode(valueStr, Charset.defaultCharset());
+                encodeValue = pattern.matcher(encodeValue).replaceAll("%20");
+                builder.append("=").append(encodeValue);
+            }
+            isFirstParam = false;
+        }
+        return builder.toString();
     }
 }

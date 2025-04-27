@@ -1,81 +1,69 @@
 package dev.langchain4j.community.model.qianfan.client;
 
-import okhttp3.OkHttpClient;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import retrofit2.Call;
-
+import dev.langchain4j.http.client.HttpClient;
+import dev.langchain4j.http.client.HttpRequest;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Supplier;
 
 public class RequestExecutor<Request, Response, ResponseContent> implements SyncOrAsyncOrStreaming<ResponseContent> {
 
-    private static final Logger LOG = LoggerFactory.getLogger(RequestExecutor.class);
-    private final Call<Response> call;
     private final Function<Response, ResponseContent> responseContentExtractor;
-    private final OkHttpClient okHttpClient;
-    private final String endpointUrl;
-    private final Supplier<Request> requestWithStreamSupplier;
+
     private final Class<Response> responseClass;
     private final Function<Response, ResponseContent> streamEventContentExtractor;
-    private final boolean logStreamingResponses;
 
-    public RequestExecutor(Call<Response> call, Function<Response, ResponseContent> responseContentExtractor,
-                           OkHttpClient okHttpClient, String endpointUrl, Supplier<Request> requestWithStreamSupplier,
-                           Class<Response> responseClass, Function<Response, ResponseContent> streamEventContentExtractor,
-                           boolean logStreamingResponses) {
-        this.call = call;
-        this.responseContentExtractor = responseContentExtractor;
-        this.okHttpClient = okHttpClient;
-        this.endpointUrl = endpointUrl;
-        this.requestWithStreamSupplier = requestWithStreamSupplier;
+    private final HttpClient httpClient;
+
+    private final HttpRequest httpRequest;
+
+    private final HttpRequest streamingHttpRequest;
+
+    public RequestExecutor(
+            HttpClient httpClient,
+            HttpRequest httpRequest,
+            Class<Response> responseClass,
+            Function<Response, ResponseContent> responseContentExtractor) {
+        this.httpClient = httpClient;
+        this.httpRequest = httpRequest;
+        this.streamingHttpRequest = null;
         this.responseClass = responseClass;
-        this.streamEventContentExtractor = streamEventContentExtractor;
-        this.logStreamingResponses = logStreamingResponses;
-    }
-
-    public RequestExecutor(Call<Response> call, Function<Response, ResponseContent> responseContentExtractor,
-                           Supplier<Request> requestWithStreamSupplier,
-                           Class<Response> responseClass, Function<Response, ResponseContent> streamEventContentExtractor
-    ) {
-        this.call = call;
         this.responseContentExtractor = responseContentExtractor;
-        this.requestWithStreamSupplier = requestWithStreamSupplier;
-        this.responseClass = responseClass;
-        this.streamEventContentExtractor = streamEventContentExtractor;
-        this.okHttpClient = null;
-        this.endpointUrl = null;
-        this.logStreamingResponses = false;
-    }
-
-    public RequestExecutor(Call<Response> call, Function<Response, ResponseContent> responseContentExtractor) {
-        this.call = call;
-        this.responseContentExtractor = responseContentExtractor;
-        this.okHttpClient = null;
-        this.endpointUrl = null;
-        this.requestWithStreamSupplier = null;
-        this.responseClass = null;
         this.streamEventContentExtractor = null;
-        this.logStreamingResponses = false;
+    }
+
+    public RequestExecutor(
+            HttpClient httpClient,
+            HttpRequest httpRequest,
+            HttpRequest streamingHttpRequest,
+            Class<Response> responseClass,
+            Function<Response, ResponseContent> responseContentExtractor,
+            Function<Response, ResponseContent> streamEventContentExtractor) {
+        this.httpClient = httpClient;
+        this.httpRequest = httpRequest;
+        this.streamingHttpRequest = streamingHttpRequest;
+        this.responseClass = responseClass;
+        this.responseContentExtractor = responseContentExtractor;
+        this.streamEventContentExtractor = streamEventContentExtractor;
     }
 
     public ResponseContent execute() {
-        return new SyncRequestExecutor<>(this.call, this.responseContentExtractor).execute();
+        SyncRequestExecutor<Response, ResponseContent> executor = new SyncRequestExecutor<>(
+                this.httpClient, this.httpRequest, this.responseClass, this.responseContentExtractor);
+        return executor.execute();
     }
 
     public AsyncResponseHandling onResponse(Consumer<ResponseContent> responseContentConsumer) {
-        return new AsyncRequestExecutor<>(this.call, this.responseContentExtractor).onResponse(responseContentConsumer);
+        return new AsyncRequestExecutor<>(
+                        this.httpClient, this.httpRequest, this.responseClass, this.responseContentExtractor)
+                .onResponse(responseContentConsumer);
     }
 
     public StreamingResponseHandling onPartialResponse(Consumer<ResponseContent> responseContentConsumer) {
         return new StreamingRequestExecutor<>(
-                this.okHttpClient,
-                this.endpointUrl,
-                this.requestWithStreamSupplier,
-                this.responseClass,
-                this.streamEventContentExtractor,
-                this.logStreamingResponses
-        ).onPartialResponse(responseContentConsumer);
+                        this.httpClient,
+                        this.streamingHttpRequest,
+                        this.responseClass,
+                        this.streamEventContentExtractor)
+                .onPartialResponse(responseContentConsumer);
     }
 }
